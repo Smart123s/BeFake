@@ -2,7 +2,7 @@ import datetime
 import io
 import logging
 import os.path
-from pathlib import Path
+from typing import Optional
 
 import httpx
 import pendulum
@@ -26,16 +26,21 @@ class Picture(object):
     def exists(self):
         return self.url is not None
 
-    def download(self, path: Path | None, skip_existing: bool = True) -> bytes | None:
-        """
-        path: Path to save the image to (without extension). If None, the image is not saved.
-        """
-        self.ext = self.ext
-        ext_type = self.ext
-        _path = path.with_suffix(f".{ext_type}") if path else None
+    def download(self, path: Optional[str], ext=None):
+        if ext:
+            # with jpg/jpeg, the file extension is conventionally jpg, but the PIL format name is jpeg
+            if ext in ['jpg', 'jpeg']:
+                file_ext = 'jpg'
+                ext_type = 'jpeg'
+            else:
+                file_ext = ext
+                ext_type = ext
+        else:
+            file_ext = self.ext
+            ext_type = self.ext
 
         # don't re-download already saved pictures
-        if _path and _path.exists() and skip_existing:
+        if path and os.path.exists(f"{path}.{file_ext}"):
             logging.debug(f"Skipping already-downloaded {self.url}")
             return
 
@@ -45,8 +50,16 @@ class Picture(object):
 
         self.data = r.content
 
-        if _path:
-            _path.write_bytes(self.data)
+        if path:
+            if ext:
+                # borrowed from https://stackoverflow.com/questions/32908639/open-pil-image-from-byte-file
+                img = Image.open(io.BytesIO(r.content))
+                img = img.convert('RGB')
+                img.save(f"{path}.{file_ext}", ext_type)
+                self.ext = file_ext
+            else:
+                with open(f"{path}.{self.ext}", "wb") as f:
+                    f.write(self.data)
             logging.debug(f"Downloaded {self.url}")
 
         return r.content

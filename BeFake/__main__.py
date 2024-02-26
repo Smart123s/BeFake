@@ -1,9 +1,9 @@
 import json
 import logging
+import os
 import random
 import string
 from functools import wraps
-from pathlib import Path
 
 import click
 from rich.logging import RichHandler
@@ -19,8 +19,6 @@ logging.basicConfig(
     handlers=[RichHandler()],
 )
 logging.getLogger('urllib3').setLevel(logging.WARNING)
-
-BASE_DIR = Path.cwd()  # TODO: make this configurable
 
 
 def load_bf(func):
@@ -85,7 +83,6 @@ def refresh(bf):
 @load_bf
 def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location):
     date_format = 'YYYY-MM-DD_HH-mm-ss'
-    logging.debug(f"base dir: {BASE_DIR.absolute()}")
 
     FEEDGETTER_MAP = {
         'friends-v1': bf.get_friendsv1_feed,
@@ -97,19 +94,20 @@ def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_locatio
 
     instant_realmoji_location = instant_realmoji_location or realmoji_location
 
-    def _save_post_common(item, _save_location: Path):
+    def _save_post_common(item, _save_location: str):
         """
         Just some generalization to avoid code duplication.
         Downloads info.json, primary, secondary, and bts
         """
-        _save_location.mkdir(parents=True, exist_ok=True)
+        os.makedirs(os.path.dirname(_save_location), exist_ok=True)
 
-        (_save_location / "info.json").write_text(json.dumps(item.data_dict, indent=4))
-        item.primary_photo.download(_save_location / "primary")
-        item.secondary_photo.download(_save_location / "secondary")
+        with open(_save_location + "info.json", "w") as f:
+            f.write(json.dumps(item.data_dict, indent=4))
+        item.primary_photo.download(_save_location + "primary")
+        item.secondary_photo.download(_save_location + "secondary")
         if item.bts_video.exists():
             # FIXME: bts_video successfully instantiates when there is none, but download() would fail
-            item.bts_video.download(_save_location / "bts")
+            item.bts_video.download(_save_location + "bts")
 
     def _save_realmojis(post, realmoji_location: str, instant_realmoji_location: str):
         for emoji in post.realmojis:
@@ -130,27 +128,25 @@ def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_locatio
                 _realmoji_location = _realmoji_location.format(
                     date=emoji.date.format(date_format)
                 )
-            _realmoji_location_path = BASE_DIR / _realmoji_location
-
-            _realmoji_location_path.parent.mkdir(parents=True, exist_ok=True)
-            emoji.photo.download(_realmoji_location_path)
+            os.makedirs(_realmoji_location, exist_ok=True)
+            emoji.photo.download(_realmoji_location)
 
     for item in feed:
         if feed_id == "memories":
             logging.info(f"saving memory {item.memory_day}")
-            _save_location = BASE_DIR / save_location.format(date=item.memory_day)
+            _save_location = save_location.format(date=item.memory_day)
             _save_post_common(item, _save_location)
 
         elif feed_id == "memories-v1":
             logging.info(f"saving memory {item.memory_day}".ljust(50, " ") + item.id)
-            _save_location = BASE_DIR / save_location.format(date=item.memory_day, post_id=item.id)
+            _save_location = save_location.format(date=item.memory_day, post_id=item.id)
             _save_post_common(item, _save_location)
 
         elif feed_id == "friends-v1":
             for post in item.posts:
                 logging.info(f"saving posts by {item.user.username}".ljust(50, " ") + post.id)
                 post_date = post.creation_date.format(date_format)
-                _save_location = BASE_DIR / save_location.format(
+                _save_location = save_location.format(
                     user=item.user.username, date=post_date, feed_id=feed_id,
                     post_id=post.id, notification_id=item.notification_id
                 )
