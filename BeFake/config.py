@@ -3,7 +3,6 @@ CONFIG = {
         "api-headers": {
             # █ bereal-* headers
             "bereal-app-version-code": "14549",
-            "bereal-device-id": 'anything',  # FIXME: taken from @rvaidun; should self.deviceId be used instead?
             "bereal-signature": "anything",
             "bereal-timezone": "Europe/London",  # UTC Timezone
             # █ other headers

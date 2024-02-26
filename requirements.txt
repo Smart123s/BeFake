@@ -3,4 +3,5 @@ httpx==0.23.0
 pendulum==2.1.2
 pillow==9.2.0
 rich==13.7.0
+pycryptodome>=3.20.0
 tzdata

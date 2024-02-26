@@ -47,10 +47,9 @@ def cli(ctx):
 
 @cli.command(help="Login to BeReal")
 @click.argument("phone_number", type=str)
-@click.argument("deviceid", type=str, default=''.join(random.choices(string.ascii_lowercase + string.digits, k=16)))
-def login(phone_number, deviceid):
+def login(phone_number):
     # NOTE: Other, deprecated login methods have been removed. Check the git history if you need them.
-    bf = BeFake(deviceId=deviceid)
+    bf = BeFake()
     bf.request_otp(phone_number)
     otp = input("Enter OTP: ")
     bf.verify_otp(otp)

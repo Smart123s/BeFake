@@ -4,8 +4,11 @@ import logging
 import os
 import platform
 import urllib.parse
-from base64 import b64decode
+from time import time
+from base64 import b64decode, b64encode
 from typing import Optional
+from Crypto.Hash import HMAC, SHA256
+from uuid import uuid4
 
 import httpx
 import pendulum
@@ -50,17 +53,17 @@ class BeFake:
             refresh_token: Optional[str] = None,
             proxies=None,
             disable_ssl=False,
-            deviceId=None,  # NOTE: defaults to a random string in the CLI
             api_url="https://mobile.bereal.com/api",
     ) -> None:
+        self.deviceId = str(uuid4())
+        self.api_url = api_url
         self.client = httpx.Client(
             proxies=proxies,
             verify=not disable_ssl,
             headers=CONFIG["bereal"]["api-headers"],
             timeout=15,
         )
-        self.api_url = api_url
-        self.deviceId = deviceId
+        self.client.headers["bereal-device-id"] = self.deviceId
         if refresh_token is not None:
             self.refresh_token = refresh_token
             self.refresh_tokens()
@@ -95,7 +98,8 @@ class BeFake:
                    "firebase": {"refresh_token": self.firebase_refresh_token,
                                 "token": self.firebase_token,
                                 "expires": self.firebase_expiration.timestamp()},
-                   "user_id": self.user_id}
+                   "user_id": self.user_id,
+                   "device_id": self.deviceId}
 
         if file_path is None:
             file_path = get_default_session_filename()
@@ -121,6 +125,11 @@ class BeFake:
             self.firebase_token = session["firebase"]["token"]
             self.firebase_expiration = pendulum.from_timestamp(session["firebase"]["expires"])
 
+            # legacy session files don't have a device_id saved
+            if "device_id" in session.keys():
+                self.deviceId = session["device_id"]
+                self.client.headers["bereal-device-id"] = self.deviceId
+
             if pendulum.now().add(minutes=3) >= self.expiration:
                 logging.info("Refreshing access token…")
                 self.refresh_tokens()
@@ -129,12 +138,31 @@ class BeFake:
                 logging.info("Refreshing firebase token…")
                 self.firebase_refresh_tokens()
 
+    def create_signature(self) -> str:
+        """Creates a bereal-signature header
+        Source: a now deleted gist.
+        """
+        secret_key = b'56037f4af22fb6960f3cd014e2ec71b3'
+
+        d_id = self.deviceId  # Bereal-Device-Id
+        tz = CONFIG["bereal"]["api-headers"]["bereal-timezone"]  # Bereal-Timezone
+        ts = int(time())  # current timestamp
+
+        message = b64encode(f"{d_id}{tz}{ts}".encode())
+        hmac_digest = HMAC.new(secret_key, message, SHA256).digest()
+        sign = b64encode(f"1:{ts}:".encode() + hmac_digest).decode()
+
+        return sign
+
     def api_request(self, method: str, endpoint: str, **kwargs) -> dict:
         assert not endpoint.startswith("/")
         res = self.client.request(
             method,
             f"{self.api_url}/{endpoint}",
-            headers={"authorization": f"Bearer {self.token}"},  # FIXME: works, but possibly incomplete
+            headers={
+                "authorization": f"Bearer {self.token}",
+                "bereal-signature": self.create_signature()
+            },
             **kwargs,
         )
         res.raise_for_status()
