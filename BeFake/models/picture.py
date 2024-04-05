@@ -1,4 +1,5 @@
 import datetime
+import time
 import io
 import logging
 import os.path
@@ -26,7 +27,7 @@ class Picture(object):
     def exists(self):
         return self.url is not None
 
-    def download(self, path: Path | None, skip_existing: bool = True) -> bytes | None:
+    def download(self, path: Path, skip_existing: bool = True, retry_count: int=10, wait_time: int = 2) -> bytes:
         """
         path: Path to save the image to (without extension). If None, the image is not saved.
         """
@@ -39,9 +40,27 @@ class Picture(object):
             logging.debug(f"Skipping already-downloaded {self.url}")
             return
 
-        r = httpx.get(self.url, headers={
-            "user-agent": "BeReal/1.0.1 (AlexisBarreyat.BeReal; build:9513; iOS 16.0.2) 1.0.0/BRApriKit",
-            "x-ios-bundle-identifier": "AlexisBarreyat.BeReal"})
+        got_data = False
+        count = 0
+        while not got_data and count < retry_count:
+            try:
+                r = httpx.get(self.url, headers={
+                    "user-agent": "BeReal/1.0.1 (AlexisBarreyat.BeReal; build:9513; iOS 16.0.2) 1.0.0/BRApriKit",
+                    "x-ios-bundle-identifier": "AlexisBarreyat.BeReal"})
+                got_data = True
+                if r.status_code == 200:
+                    got_data = True
+                else:
+                    print(f"Error requesting image: {r.status_code}, retrying in 5 seconds")
+                    time.sleep(wait_time)
+            except Exception as e:
+                count += 1
+                logging.error(f"Error downloading {self.url}: {e}")
+                time.sleep(wait_time)
+            count += 1
+
+        if not got_data:
+            raise Exception(f"Error requesting image: {r.status_code} with {retry_count} retries!")
 
         self.data = r.content
 
