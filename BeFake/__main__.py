@@ -4,6 +4,7 @@ import random
 import string
 from functools import wraps
 from pathlib import Path
+from datetime import datetime
 
 import click
 from rich.logging import RichHandler
@@ -82,8 +83,9 @@ def refresh(bf):
 @click.option("--save-location", required=True, help="Template for the paths where the posts should be downloaded")
 @click.option("--realmoji-location", help="Template for the paths where the (non-instant) realmojis should be downloaded")
 @click.option("--instant-realmoji-location", help="Template for the paths where the instant realmojis should be downloaded")
+@click.option("--days-back", type=int, help="The number of days to go back in time to download memories, does not effect other feeds")
 @load_bf
-def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location):
+def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location, days_back):
     date_format = 'YYYY-MM-DD_HH-mm-ss'
     logging.debug(f"base dir: {BASE_DIR.absolute()}")
 
@@ -142,6 +144,11 @@ def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_locatio
             _save_post_common(item, _save_location)
 
         elif feed_id == "memories-v1":
+            if days_back:
+                memoryDay = datetime.strptime(item.memory_day, '%Y-%m-%d')
+                if (datetime.now() - memoryDay).days > days_back:
+                    continue
+
             logging.info(f"saving memory {item.memory_day}".ljust(50, " ") + item.id)
             _save_location = BASE_DIR / save_location.format(date=item.memory_day, post_id=item.id)
             _save_post_common(item, _save_location)
