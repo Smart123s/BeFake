@@ -74,7 +74,7 @@ def refresh(bf):
     # Since this command is mostly used for debugging, it wouldn't be practical to add extra code to prevent this
     # behaviour.
     bf.firebase_refresh_tokens()
-    click.echo(bf.token, nl=False)
+    click.echo(bf.token)
 
 
 @cli.command(help="Download a feed")
