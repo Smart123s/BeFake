@@ -21,7 +21,7 @@ logging.basicConfig(
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 BASE_DIR = Path.cwd()  # TODO: make this configurable
-
+DATA_DIR = "data"
 
 def load_bf(func):
     """
@@ -79,13 +79,35 @@ def refresh(bf):
 
 @cli.command(help="Download a feed")
 @click.argument("feed_id", type=click.Choice(["friends", "friends-v1", "friends-of-friends", "discovery", "memories", "memories-v1"]))
-@click.option("--save-location", required=True, help="Template for the paths where the posts should be downloaded")
+@click.option("--save-location", help="Template for the paths where the posts should be downloaded")
 @click.option("--realmoji-location", help="Template for the paths where the (non-instant) realmojis should be downloaded")
 @click.option("--instant-realmoji-location", help="Template for the paths where the instant realmojis should be downloaded")
 @load_bf
 def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location):
     date_format = 'YYYY-MM-DD_HH-mm-ss'
     logging.debug(f"base dir: {BASE_DIR.absolute()}")
+    
+    if save_location is None:
+        if feed_id == "memories":
+            save_location = f"{DATA_DIR}" + "/feeds/memories/{date}"
+        elif feed_id == "memories-v1":
+            save_location = f"{DATA_DIR}" + "/feeds/memories-v1/{date}/{post_id}"
+        elif feed_id == "friends-v1":
+            save_location = f"{DATA_DIR}" + "/feeds/{feed_id}/{date}/{user}/{notification_id}/{post_id}"
+        else:
+            save_location = f"{DATA_DIR}" + "/feeds/{feed_id}/{date}/{user}/{post_id}"
+
+    if realmoji_location is None:
+        if feed_id == "friends-v1":
+            realmoji_location = \
+                f"{DATA_DIR}" + \
+                "/feeds/{feed_id}/{post_date}/{post_user}/{notification_id}/{post_id}/reactions/{type}/{user}"
+        else:
+            realmoji_location = \
+                f"{DATA_DIR}" + \
+                "/feeds/{feed_id}/{post_date}/{post_user}/{post_id}/reactions/{type}/{user}"
+
+    instant_realmoji_location = realmoji_location if instant_realmoji_location is None else instant_realmoji_location
 
     FEEDGETTER_MAP = {
         'friends-v1': bf.get_friendsv1_feed,
