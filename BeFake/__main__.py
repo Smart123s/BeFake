@@ -82,9 +82,10 @@ def refresh(bf):
 @click.option("--save-location", help="Template for the paths where the posts should be downloaded")
 @click.option("--realmoji-location", help="Template for the paths where the (non-instant) realmojis should be downloaded")
 @click.option("--instant-realmoji-location", help="Template for the paths where the instant realmojis should be downloaded")
+@click.option("--download-existing", is_flag=True, help="Skip downloading posts that already exist")
 @load_bf
-def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location):
-    date_format = 'YYYY-MM-DD_HH-mm-ss'
+def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_location, download_existing):
+    date_format = 'YYYY-MM-DD'
     logging.debug(f"base dir: {BASE_DIR.absolute()}")
     
     if save_location is None:
@@ -108,6 +109,12 @@ def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_locatio
                 "/feeds/{feed_id}/{post_date}/{post_user}/{post_id}/reactions/{type}/{user}"
 
     instant_realmoji_location = realmoji_location if instant_realmoji_location is None else instant_realmoji_location
+    
+    download_existing = download_existing or False
+
+    logging.debug(f"save location: {save_location}")
+    logging.debug(f"realmoji location: {realmoji_location}")
+    logging.debug(f"instant realmoji location: {instant_realmoji_location}")
 
     FEEDGETTER_MAP = {
         'friends-v1': bf.get_friendsv1_feed,
@@ -127,11 +134,11 @@ def feed(bf, feed_id, save_location, realmoji_location, instant_realmoji_locatio
         _save_location.mkdir(parents=True, exist_ok=True)
 
         (_save_location / "info.json").write_text(json.dumps(item.data_dict, indent=4))
-        item.primary_photo.download(_save_location / "primary")
-        item.secondary_photo.download(_save_location / "secondary")
+        item.primary_photo.download(_save_location / "primary", skip_existing=not download_existing)
+        item.secondary_photo.download(_save_location / "secondary", skip_existing=not download_existing)
         if item.bts_video.exists():
             # FIXME: bts_video successfully instantiates when there is none, but download() would fail
-            item.bts_video.download(_save_location / "bts")
+            item.bts_video.download(_save_location / "bts", skip_existing=not download_existing)
 
     def _save_realmojis(post, realmoji_location: str, instant_realmoji_location: str):
         for emoji in post.realmojis:
